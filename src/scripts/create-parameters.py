@@ -104,7 +104,7 @@ def is_mapping_line(line: str) -> bool:
 def create_parameters(output_path, config_path, head, base, mapping):
   checkout(base)  # Checkout base revision to make sure it is available for comparison
   checkout(head)  # return to head commit
-  base = merge_base(base, head)
+  # base = merge_base(base, head)
 
   if head == base:
     try:
