@@ -1,0 +1,177 @@
+commands:
+    generate-config:
+        description: |
+            Generate config file from the config list.
+        parameters:
+            config-list-path:
+                default: /tmp/filtered-config-list
+                description: |
+                    A file path to append config paths. Each path in this file should be relative to the working directory.
+                type: string
+            generated-config-path:
+                default: /tmp/generated-config.yml
+                description: |
+                    A file path for the generated config file.
+                type: string
+        steps:
+            - run:
+                command: \<<include(scripts/generate-config.sh)>>
+                environment:
+                    PARAM_CONFIG_LIST_PATH: <<parameters.config-list-path>>
+                    PARAM_GENERATED_CONFIG_PATH: <<parameters.generated-config-path>>
+                name: Generate config
+    set-parameters:
+        description: |
+            Generates a set of pipeline parameters from `mapping` at `output-path`.
+        parameters:
+            base-revision:
+                default: main
+                description: |
+                    The revision to compare the current one against for the purpose of determining changed files.
+                type: string
+            config-path:
+                default: .circleci/continue_config.yml
+                description: |
+                    The location of the config to continue the pipeline with, please note that this parameter will be ignored if the user passes the config file per mapping in the mapping parameter
+                type: string
+            mapping:
+                default: ""
+                description: |
+                    Mapping of path regular expressions to pipeline parameters and values. One mapping per line, whitespace-delimited. If duplicate parameter keys are found, the last matching pattern will apply.
+                type: string
+            output-path:
+                default: /tmp/pipeline-parameters.json
+                description: |
+                    Path to save the generated parameters to.
+                type: string
+        steps:
+            - run:
+                command: \<<include(scripts/create-parameters.py)>>
+                environment:
+                    BASE_REVISION: << parameters.base-revision >>
+                    CONFIG_PATH: << parameters.config-path >>
+                    MAPPING: << parameters.mapping >>
+                    OUTPUT_PATH: << parameters.output-path >>
+                name: Set parameters
+                shell: /usr/bin/env python3
+description: |
+    Continue a pipeline based on paths of changed files. This can be useful in a monorepo setup where one may want to trigger different workflows based on which module(s) in the repo has changed. This orb does not support server at this time.
+display:
+    home_url: https://circleci.com/docs/2.0/dynamic-config
+    source_url: https://github.com/CircleCI-Public/path-filtering-orb
+examples:
+    example:
+        description: |
+            Continue a pipeline from the setup phase with supplied configuration and pipeline parameters generated from the files changed.
+        usage:
+            orbs:
+                path-filtering: circleci/path-filtering@0.0.1
+            setup: true
+            version: 2.1
+            workflows:
+                generate-config:
+                    jobs:
+                        - path-filtering/filter:
+                            base-revision: main
+                            config-path: .circleci/continue_config.yml
+                            mapping: |
+                                src/.* build-code true
+                                doc/.* build-docs true
+                        - path-filtering/filter:
+                            base-revision: main
+                            config-path: .circleci/continue_config.yml
+                            mapping: |
+                                src/.* build-code true .circleci/build-code-config.yml
+                                doc/.* build-docs true .circleci/build-docs-config.yml
+                        - path-filtering/filter:
+                            base-revision: main
+                            config-path: .circleci/continue-config.yml
+                            mapping: .circleci/mapping.conf
+executors:
+    default:
+        description: |
+            This is a sample executor using Docker and Python.
+        docker:
+            - image: cimg/python:<<parameters.tag>>
+        parameters:
+            tag:
+                default: "3.8"
+                description: |
+                    Pick a specific circleci/python image variant: https://hub.docker.com/r/cimg/python/tags
+                type: string
+jobs:
+    filter:
+        description: |
+            Continues a pipeline in the `setup` state based with static config and a set of pipeline parameters based on the changes in this push.
+            The mapping should be a set of items like so: <path regular expression> <pipeline parameter> <value> Multiple mappings can be supplied on separate lines. If the regular expression matches any file changed between HEAD and the base revision, the pipeline parameter will be set to the supplied value for the setup workflow continuation. This way the continuation config can be filtered to only perform relevant tasks.
+        executor:
+            name: default
+            tag: << parameters.tag >>
+        parameters:
+            base-revision:
+                default: main
+                description: |
+                    The revision to compare the current one against for the purpose of determining changed files.
+                type: string
+            circleci_domain:
+                default: circleci.com
+                description: The domain of the CircleCI installation - defaults to circleci.com. (Only necessary for CircleCI Server users)
+                type: string
+            config-path:
+                default: .circleci/continue_config.yml
+                description: |
+                    The location of the config to continue the pipeline with, please note that this parameter will be ignored if the user passes the config file per mapping in the mapping parameter
+                type: string
+            mapping:
+                default: ""
+                description: |
+                    Mapping of path regular expressions to pipeline parameters and values. If the value is a file, then it will be loaded from the disk. One mapping per line, whitespace-delimited.
+                type: string
+            output-path:
+                default: /tmp/pipeline-parameters.json
+                description: |
+                    Path to save the generated parameters to.
+                type: string
+            resource_class:
+                default: small
+                description: Resource class to use
+                type: string
+            tag:
+                default: "3.8"
+                description: |
+                    Pick a specific circleci/python image variant: https://hub.docker.com/r/cimg/python/tags
+                type: string
+            workspace_path:
+                default: ""
+                description: Path to attach the workspace to
+                type: string
+        resource_class: << parameters.resource_class >>
+        steps:
+            - checkout
+            - when:
+                condition:
+                    not:
+                        equal:
+                            - ""
+                            - << parameters.workspace_path >>
+                steps:
+                    - attach_workspace:
+                        at: << parameters.workspace_path >>
+            - set-parameters:
+                base-revision: << parameters.base-revision >>
+                config-path: << parameters.config-path >>
+                mapping: << parameters.mapping >>
+                output-path: << parameters.output-path >>
+            - generate-config:
+                config-list-path: /tmp/filtered-config-list
+                generated-config-path: /tmp/generated-config.yml
+            - continuation/continue:
+                circleci_domain: << parameters.circleci_domain >>
+                configuration_path: /tmp/generated-config.yml
+                parameters: << parameters.output-path >>
+orbs:
+    continuation: circleci/continuation@0.2.0
+scripts: {}
+tests: {}
+version: 2.1
+

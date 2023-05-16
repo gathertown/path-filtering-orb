@@ -18,4 +18,4 @@ steps:
         PARAM_CONFIG_LIST_PATH: <<parameters.config-list-path>>
         PARAM_GENERATED_CONFIG_PATH: <<parameters.generated-config-path>>
       name: Generate config
-      command: <<include(scripts/generate-config.sh)>>
+      command: \<<include(scripts/generate-config.sh)>>
