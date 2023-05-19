@@ -37,4 +37,4 @@ steps:
         OUTPUT_PATH: << parameters.output-path >>
         CONFIG_PATH: << parameters.config-path >>
       shell: /usr/bin/env python3
-      command: \<<include(scripts/create-parameters.py)>>
+      command: <<include(scripts/create-parameters.py)>>
