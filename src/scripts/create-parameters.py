@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import json
 import os
 import re
@@ -78,10 +76,22 @@ def write_parameters_from_mappings(mappings, changes, output_path, config_path):
     else:
       path, param, param_value, config_file = m
 
+    try:
+      decoded_param_value = json.loads(param_value)
+    except ValueError:
+      raise Exception("Cannot parse pipeline value {} from mapping".format(param_value))
+
+    # type check pipeline parameters - should be one of integer, string, or boolean
+    if not isinstance(decoded_param_value, (int, str, bool)):
+      raise Exception("""
+        Pipeline parameters can only be integer, string or boolean type.
+        Found {} of type {}
+        """.format(decoded_param_value, type(decoded_param_value)))
+
     regex = re.compile(r'^' + path + r'$')
     for change in changes:
       if regex.match(change):
-        filtered_mapping.append([param, json.loads(param_value)])
+        filtered_mapping.append([param, decoded_param_value])
         if config_file:
           filtered_files.add(config_file + "\n")
         break
@@ -137,10 +147,11 @@ def create_parameters(output_path, config_path, head, base, mapping):
   write_parameters_from_mappings(mappings, changes, output_path, config_path)
 
 
-create_parameters(
-  os.environ.get('OUTPUT_PATH'),
-  os.environ.get('CONFIG_PATH'),
-  os.environ.get('CIRCLE_SHA1'),
-  os.environ.get('BASE_REVISION'),
-  os.environ.get('MAPPING')
-)
+if __name__ == "__main__":
+  create_parameters(
+    os.environ.get('OUTPUT_PATH'),
+    os.environ.get('CONFIG_PATH'),
+    os.environ.get('CIRCLE_SHA1'),
+    os.environ.get('BASE_REVISION'),
+    os.environ.get('MAPPING')
+  )
